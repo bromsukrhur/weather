@@ -97,10 +97,12 @@
       background: radial-gradient(circle, rgba(88,166,255,0.08) 0%, transparent 70%);
       pointer-events: none;
     }
-    .location-row { display: flex; align-items: center; gap: 6px; margin-bottom: 1.5rem; }
+    .location-row { display: flex; align-items: center; gap: 6px; margin-bottom: 0.75rem; }
     .pin { width: 16px; height: 16px; fill: var(--accent); flex-shrink: 0; }
     .location-name { font-size: 15px; font-weight: 500; }
-    .location-time { font-size: 13px; color: var(--muted); margin-left: auto; }
+    .datetime-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 1.25rem; }
+    .date-str { font-size: 20px; font-weight: 500; color: var(--text); }
+    .time-str { font-size: 14px; color: var(--muted); }
     .weather-main { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 1.5rem; }
     .temp { font-family: 'DM Serif Display', serif; font-size: 72px; line-height: 1; letter-spacing: -2px; }
     .unit { font-size: 32px; color: var(--muted); vertical-align: super; }
@@ -273,6 +275,7 @@ function renderWidget(loc, data, air) {
   const wmo = WMO[c.weathercode] || ['알 수 없음','❓'];
   const desc = wmo[0], icon = wmo[1];
   const now = new Date();
+  const dateStr = now.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
   const timeStr = now.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
   const displayName = [loc.name, loc.admin2 || loc.admin1].filter(Boolean).join(', ');
 
@@ -301,7 +304,10 @@ function renderWidget(loc, data, air) {
       '<div class="location-row">' +
         '<svg class="pin" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>' +
         '<span class="location-name">' + displayName + '</span>' +
-        '<span class="location-time">' + timeStr + '</span>' +
+      '</div>' +
+      '<div class="datetime-row">' +
+        '<span class="date-str">' + dateStr + '</span>' +
+        '<span class="time-str">' + timeStr + '</span>' +
       '</div>' +
       '<div class="weather-main">' +
         '<div><div class="temp">' + Math.round(c.temperature_2m) + '<span class="unit">°C</span></div><div class="desc">체감 ' + Math.round(c.apparent_temperature) + '° · ' + desc + '</div></div>' +
