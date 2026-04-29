@@ -106,11 +106,24 @@
     .unit { font-size: 32px; color: var(--muted); vertical-align: super; }
     .desc { font-size: 15px; color: var(--muted); margin-top: 6px; }
     .weather-icon { font-size: 72px; line-height: 1; }
-    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .stat { background: var(--surface2); border-radius: 12px; padding: 12px 14px; }
-    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+    .air-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .stat { border-radius: 12px; padding: 12px 14px; background: var(--surface2); }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
     .stat-value { font-size: 18px; font-weight: 500; }
     .stat-unit { font-size: 12px; color: var(--muted); }
+    .stat-badge {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .badge-good    { background: rgba(86,211,100,0.15); color: #56d364; }
+    .badge-normal  { background: rgba(88,166,255,0.15); color: #58a6ff; }
+    .badge-bad     { background: rgba(255,166,87,0.15);  color: #ffa657; }
+    .badge-very-bad{ background: rgba(255,100,100,0.15); color: #ff6464; }
     .forecast-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1.25rem 1.75rem; }
     .forecast-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; }
     .forecast-list { display: flex; flex-direction: column; gap: 8px; }
@@ -161,6 +174,20 @@ function locationLabel(r) {
   return parts.join(', ');
 }
 
+function pmGrade(val, type) {
+  if (type === 'pm10') {
+    if (val <= 30)  return ['좋음',  'badge-good'];
+    if (val <= 80)  return ['보통',  'badge-normal'];
+    if (val <= 150) return ['나쁨',  'badge-bad'];
+    return ['매우나쁨', 'badge-very-bad'];
+  } else {
+    if (val <= 15)  return ['좋음',  'badge-good'];
+    if (val <= 35)  return ['보통',  'badge-normal'];
+    if (val <= 75)  return ['나쁨',  'badge-bad'];
+    return ['매우나쁨', 'badge-very-bad'];
+  }
+}
+
 async function geocodeSuggest(query) {
   const res = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(query) + '&count=8&language=ko');
   const d = await res.json();
@@ -169,6 +196,12 @@ async function geocodeSuggest(query) {
 
 async function fetchWeather(lat, lon) {
   const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=temperature_2m,apparent_temperature,weathercode,windspeed_10m,relativehumidity_2m,precipitation&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7';
+  const res = await fetch(url);
+  return await res.json();
+}
+
+async function fetchAir(lat, lon) {
+  const url = 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + lat + '&longitude=' + lon + '&current=pm10,pm2_5';
   const res = await fetch(url);
   return await res.json();
 }
@@ -207,8 +240,11 @@ async function loadWeather(loc) {
   errEl.style.display = 'none';
   document.getElementById('content').innerHTML = '<div class="loading">불러오는 중...</div>';
   try {
-    const weather = await fetchWeather(loc.latitude, loc.longitude);
-    renderWidget(loc, weather);
+    const [weather, air] = await Promise.all([
+      fetchWeather(loc.latitude, loc.longitude),
+      fetchAir(loc.latitude, loc.longitude)
+    ]);
+    renderWidget(loc, weather, air);
   } catch(e) {
     errEl.textContent = '날씨 정보를 가져오지 못했습니다.';
     errEl.style.display = 'block';
@@ -231,7 +267,7 @@ async function selectAndSearch() {
   pickLocation(results[0]);
 }
 
-function renderWidget(loc, data) {
+function renderWidget(loc, data, air) {
   const c = data.current;
   const d = data.daily;
   const wmo = WMO[c.weathercode] || ['알 수 없음','❓'];
@@ -239,6 +275,11 @@ function renderWidget(loc, data) {
   const now = new Date();
   const timeStr = now.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
   const displayName = [loc.name, loc.admin2 || loc.admin1].filter(Boolean).join(', ');
+
+  const pm10  = air && air.current ? Math.round(air.current.pm10)  : null;
+  const pm25  = air && air.current ? Math.round(air.current.pm2_5) : null;
+  const [pm10Label,  pm10Class]  = pm10  != null ? pmGrade(pm10,  'pm10') : ['--', 'badge-normal'];
+  const [pm25Label,  pm25Class]  = pm25  != null ? pmGrade(pm25,  'pm25') : ['--', 'badge-normal'];
 
   const minAll = Math.min.apply(null, d.temperature_2m_min.slice(1,6));
   const maxAll = Math.max.apply(null, d.temperature_2m_max.slice(1,6));
@@ -250,8 +291,7 @@ function renderWidget(loc, data) {
     const day = DAYS[new Date(d.time[idx]).getDay()];
     const hi = Math.round(d.temperature_2m_max[idx]);
     const lo = Math.round(d.temperature_2m_min[idx]);
-    const fwmo = WMO[d.weathercode[idx]] || ['','❓'];
-    const fIcon = fwmo[1];
+    const fIcon = (WMO[d.weathercode[idx]] || ['','❓'])[1];
     const barW = Math.round(((hi - minAll) / range) * 100);
     forecastHTML += '<div class="forecast-item"><span class="forecast-day">' + day + '</span><span class="forecast-icon">' + fIcon + '</span><div class="forecast-bar-wrap"><div class="forecast-bar" style="width:' + barW + '%"></div></div><div class="forecast-temps"><span class="forecast-lo">' + lo + '°</span><span class="forecast-hi">' + hi + '°</span></div></div>';
   }
@@ -271,6 +311,10 @@ function renderWidget(loc, data) {
         '<div class="stat"><div class="stat-label">습도</div><div class="stat-value">' + c.relativehumidity_2m + '<span class="stat-unit">%</span></div></div>' +
         '<div class="stat"><div class="stat-label">바람</div><div class="stat-value">' + Math.round(c.windspeed_10m) + '<span class="stat-unit"> km/h</span></div></div>' +
         '<div class="stat"><div class="stat-label">강수량</div><div class="stat-value">' + c.precipitation + '<span class="stat-unit"> mm</span></div></div>' +
+      '</div>' +
+      '<div class="air-row" style="margin-top:12px;">' +
+        '<div class="stat"><div class="stat-label">미세먼지 PM10</div><div class="stat-value">' + (pm10 != null ? pm10 : '--') + '<span class="stat-unit"> ㎍/㎥</span></div><span class="stat-badge ' + pm10Class + '">' + pm10Label + '</span></div>' +
+        '<div class="stat"><div class="stat-label">초미세먼지 PM2.5</div><div class="stat-value">' + (pm25 != null ? pm25 : '--') + '<span class="stat-unit"> ㎍/㎥</span></div><span class="stat-badge ' + pm25Class + '">' + pm25Label + '</span></div>' +
       '</div>' +
     '</div>' +
     '<div class="forecast-card"><div class="forecast-title">5일 예보</div><div class="forecast-list">' + forecastHTML + '</div></div>';
