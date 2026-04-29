@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>날씨 위젯</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2130;
+      --border: rgba(255,255,255,0.08);
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --warm: #ffa657;
+    }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .widget { width: 100%; max-width: 420px; }
+    .search-bar { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+    .search-wrap { position: relative; flex: 1; }
+    .search-wrap input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-wrap input::placeholder { color: var(--muted); }
+    .search-wrap input:focus { border-color: var(--accent); }
+    .suggestions {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0; right: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .suggestion-item {
+      padding: 11px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .suggestion-item:last-child { border-bottom: none; }
+    .suggestion-item:hover { background: rgba(88,166,255,0.1); }
+    .s-main { font-size: 14px; color: var(--text); }
+    .s-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .search-bar button {
+      background: var(--accent);
+      border: none;
+      border-radius: 12px;
+      padding: 12px 18px;
+      color: #0d1117;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+    .search-bar button:hover { opacity: 0.85; }
+    .card-main {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.75rem;
+      margin-bottom: 1rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .card-main::before {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(88,166,255,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .location-row { display: flex; align-items: center; gap: 6px; margin-bottom: 1.5rem; }
+    .pin { width: 16px; height: 16px; fill: var(--accent); flex-shrink: 0; }
+    .location-name { font-size: 15px; font-weight: 500; }
+    .location-time { font-size: 13px; color: var(--muted); margin-left: auto; }
+    .weather-main { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 1.5rem; }
+    .temp { font-family: 'DM Serif Display', serif; font-size: 72px; line-height: 1; letter-spacing: -2px; }
+    .unit { font-size: 32px; color: var(--muted); vertical-align: super; }
+    .desc { font-size: 15px; color: var(--muted); margin-top: 6px; }
+    .weather-icon { font-size: 72px; line-height: 1; }
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .stat { background: var(--surface2); border-radius: 12px; padding: 12px 14px; }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+    .stat-value { font-size: 18px; font-weight: 500; }
+    .stat-unit { font-size: 12px; color: var(--muted); }
+    .forecast-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1.25rem 1.75rem; }
+    .forecast-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; }
+    .forecast-list { display: flex; flex-direction: column; gap: 8px; }
+    .forecast-item { display: flex; align-items: center; gap: 12px; }
+    .forecast-day { font-size: 14px; color: var(--muted); width: 32px; flex-shrink: 0; }
+    .forecast-icon { font-size: 18px; flex-shrink: 0; }
+    .forecast-bar-wrap { flex: 1; height: 4px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+    .forecast-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--warm)); }
+    .forecast-temps { display: flex; gap: 8px; font-size: 13px; flex-shrink: 0; }
+    .forecast-lo { color: var(--muted); }
+    .forecast-hi { font-weight: 500; }
+    .loading { text-align: center; padding: 3rem 0; color: var(--muted); font-size: 15px; }
+    .error { background: rgba(255,100,100,0.08); border: 1px solid rgba(255,100,100,0.2); border-radius: 12px; padding: 14px 18px; color: #ff8080; font-size: 14px; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+<div class="widget">
+  <div class="search-bar">
+    <div class="search-wrap">
+      <input type="text" id="cityInput" placeholder="동네, 구, 도시 입력 (예: 강남구, 마포구)" autocomplete="off" />
+      <div class="suggestions" id="suggestions" style="display:none;"></div>
+    </div>
+    <button onclick="selectAndSearch()">검색</button>
+  </div>
+  <div id="errorMsg" class="error" style="display:none;"></div>
+  <div id="content"><div class="loading">날씨 정보를 불러오는 중...</div></div>
+</div>
+
+<script>
+const WMO = {
+  0:['맑음','☀️'],1:['대체로 맑음','🌤️'],2:['구름 조금','⛅'],3:['흐림','☁️'],
+  45:['안개','🌫️'],48:['안개','🌫️'],
+  51:['이슬비','🌦️'],53:['이슬비','🌦️'],55:['이슬비','🌦️'],
+  61:['비','🌧️'],63:['비','🌧️'],65:['폭우','🌧️'],
+  71:['눈','🌨️'],73:['눈','🌨️'],75:['폭설','❄️'],
+  80:['소나기','🌦️'],81:['소나기','🌦️'],82:['강한 소나기','⛈️'],
+  95:['뇌우','⛈️'],96:['우박','⛈️'],99:['우박','⛈️']
+};
+const DAYS = ['일','월','화','수','목','금','토'];
+let debounceTimer = null;
+let selectedLocation = null;
+
+function locationLabel(r) {
+  const parts = [r.name];
+  if (r.admin2 && r.admin2 !== r.name) parts.push(r.admin2);
+  if (r.admin1 && r.admin1 !== r.admin2) parts.push(r.admin1);
+  if (r.country) parts.push(r.country);
+  return parts.join(', ');
+}
+
+async function geocodeSuggest(query) {
+  const res = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(query) + '&count=8&language=ko');
+  const d = await res.json();
+  return d.results || [];
+}
+
+async function fetchWeather(lat, lon) {
+  const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=temperature_2m,apparent_temperature,weathercode,windspeed_10m,relativehumidity_2m,precipitation&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7';
+  const res = await fetch(url);
+  return await res.json();
+}
+
+function showSuggestions(results) {
+  const box = document.getElementById('suggestions');
+  if (!results.length) { box.style.display = 'none'; return; }
+  let html = '';
+  results.forEach(function(r, i) {
+    html += '<div class="suggestion-item" data-i="' + i + '"><div class="s-main">' + r.name + '</div><div class="s-sub">' + locationLabel(r) + '</div></div>';
+  });
+  box.innerHTML = html;
+  box._results = results;
+  box.style.display = 'block';
+  box.querySelectorAll('.suggestion-item').forEach(function(el) {
+    el.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      pickLocation(results[parseInt(el.dataset.i)]);
+    });
+  });
+}
+
+function hideSuggestions() {
+  document.getElementById('suggestions').style.display = 'none';
+}
+
+function pickLocation(loc) {
+  selectedLocation = loc;
+  document.getElementById('cityInput').value = locationLabel(loc);
+  hideSuggestions();
+  loadWeather(loc);
+}
+
+async function loadWeather(loc) {
+  const errEl = document.getElementById('errorMsg');
+  errEl.style.display = 'none';
+  document.getElementById('content').innerHTML = '<div class="loading">불러오는 중...</div>';
+  try {
+    const weather = await fetchWeather(loc.latitude, loc.longitude);
+    renderWidget(loc, weather);
+  } catch(e) {
+    errEl.textContent = '날씨 정보를 가져오지 못했습니다.';
+    errEl.style.display = 'block';
+    document.getElementById('content').innerHTML = '';
+  }
+}
+
+async function selectAndSearch() {
+  hideSuggestions();
+  if (selectedLocation) { loadWeather(selectedLocation); return; }
+  const query = document.getElementById('cityInput').value.trim();
+  if (!query) return;
+  const results = await geocodeSuggest(query);
+  if (!results.length) {
+    const errEl = document.getElementById('errorMsg');
+    errEl.textContent = '"' + query + '" 장소를 찾을 수 없습니다.';
+    errEl.style.display = 'block';
+    return;
+  }
+  pickLocation(results[0]);
+}
+
+function renderWidget(loc, data) {
+  const c = data.current;
+  const d = data.daily;
+  const wmo = WMO[c.weathercode] || ['알 수 없음','❓'];
+  const desc = wmo[0], icon = wmo[1];
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
+  const displayName = [loc.name, loc.admin2 || loc.admin1].filter(Boolean).join(', ');
+
+  const minAll = Math.min.apply(null, d.temperature_2m_min.slice(1,6));
+  const maxAll = Math.max.apply(null, d.temperature_2m_max.slice(1,6));
+  const range = maxAll - minAll || 1;
+
+  let forecastHTML = '';
+  for (let i = 0; i < 5; i++) {
+    const idx = i + 1;
+    const day = DAYS[new Date(d.time[idx]).getDay()];
+    const hi = Math.round(d.temperature_2m_max[idx]);
+    const lo = Math.round(d.temperature_2m_min[idx]);
+    const fwmo = WMO[d.weathercode[idx]] || ['','❓'];
+    const fIcon = fwmo[1];
+    const barW = Math.round(((hi - minAll) / range) * 100);
+    forecastHTML += '<div class="forecast-item"><span class="forecast-day">' + day + '</span><span class="forecast-icon">' + fIcon + '</span><div class="forecast-bar-wrap"><div class="forecast-bar" style="width:' + barW + '%"></div></div><div class="forecast-temps"><span class="forecast-lo">' + lo + '°</span><span class="forecast-hi">' + hi + '°</span></div></div>';
+  }
+
+  document.getElementById('content').innerHTML =
+    '<div class="card-main">' +
+      '<div class="location-row">' +
+        '<svg class="pin" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>' +
+        '<span class="location-name">' + displayName + '</span>' +
+        '<span class="location-time">' + timeStr + '</span>' +
+      '</div>' +
+      '<div class="weather-main">' +
+        '<div><div class="temp">' + Math.round(c.temperature_2m) + '<span class="unit">°C</span></div><div class="desc">체감 ' + Math.round(c.apparent_temperature) + '° · ' + desc + '</div></div>' +
+        '<div class="weather-icon">' + icon + '</div>' +
+      '</div>' +
+      '<div class="stats-row">' +
+        '<div class="stat"><div class="stat-label">습도</div><div class="stat-value">' + c.relativehumidity_2m + '<span class="stat-unit">%</span></div></div>' +
+        '<div class="stat"><div class="stat-label">바람</div><div class="stat-value">' + Math.round(c.windspeed_10m) + '<span class="stat-unit"> km/h</span></div></div>' +
+        '<div class="stat"><div class="stat-label">강수량</div><div class="stat-value">' + c.precipitation + '<span class="stat-unit"> mm</span></div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="forecast-card"><div class="forecast-title">5일 예보</div><div class="forecast-list">' + forecastHTML + '</div></div>';
+}
+
+var input = document.getElementById('cityInput');
+
+input.addEventListener('input', function() {
+  selectedLocation = null;
+  clearTimeout(debounceTimer);
+  var q = input.value.trim();
+  if (q.length < 2) { hideSuggestions(); return; }
+  debounceTimer = setTimeout(function() {
+    geocodeSuggest(q).then(showSuggestions);
+  }, 300);
+});
+
+input.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') selectAndSearch();
+  if (e.key === 'Escape') hideSuggestions();
+});
+
+input.addEventListener('blur', function() { setTimeout(hideSuggestions, 150); });
+
+geocodeSuggest('Seoul').then(function(r) { if (r.length) pickLocation(r[0]); });
+</script>
+</body>
+</html>
